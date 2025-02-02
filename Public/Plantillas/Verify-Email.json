@@ -1,0 +1,8 @@
+{
+    "Asunto": "VERIFICA TU CUENTA MMW",
+    "html": "/Public/Plantillas/PLA-VERIFYACOUNT.html",
+    "Parametros": {
+        "@sitioDesuscribir":"https://5td5trf5-3001.use2.devtunnels.ms/sitioDesuscribir?p=",
+        "@rutaVerificar": "https://5td5trf5-3001.use2.devtunnels.ms/verify-account?p="
+    }
+}
