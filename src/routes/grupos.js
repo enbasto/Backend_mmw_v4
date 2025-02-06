@@ -4,7 +4,6 @@ const Miembro = require("../models/Miembro");
 const router = express.Router();
 const authenticateToken = require("../middlewares/authMiddleware"); // Importa el middleware
 
-// Obtener todos los grupos
 // Obtener todos los grupos con sus miembros
 router.get("/", authenticateToken, async (req, res) => {
   try {
@@ -42,7 +41,6 @@ router.get("/", authenticateToken, async (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).json(gruposData);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error obteniendo los grupos" });
   }
 });
@@ -70,7 +68,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
       { nombre },
       { where: { id, uuid: userId } }
     );
-    console.log(updated);
     if (updated === 0) {
       return res
         .status(404)
@@ -143,10 +140,14 @@ router.post("/:grupoId/miembros", authenticateToken, async (req, res) => {
         .json({ message: "Grupo no encontrado o no pertenece al usuario" });
     }
 
-    const miembro = await Miembro.create({ nombre, telefono, grupoId, uuid: userId });
+    const miembro = await Miembro.create({
+      nombre,
+      telefono,
+      grupoId,
+      uuid: userId,
+    });
     res.status(201).json(miembro);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error agregando miembro" });
   }
 });
@@ -210,55 +211,52 @@ router.delete(
       await Miembro.destroy({ where: { id: miembroId, grupoId } });
       res.status(204).json({ message: "Miembro eliminado con éxito" });
     } catch (error) {
-      console.error(error);
       res.status(500).json({ message: "Error eliminando miembro" });
     }
   }
 );
 
-
 // Importar miembros en masa
 router.post("/:grupoId/miembros/bulk", authenticateToken, async (req, res) => {
-    try {
-      const { grupoId } = req.params;
-      const { miembros } = req.body;
-      const userId = req.user.id;
-  
-      // Verifica que el grupo pertenece al usuario autenticado
-      const grupo = await Grupo.findOne({
-        where: { id: grupoId, uuid: userId },
-      });
-  
-      if (!grupo) {
-        return res
-          .status(404)
-          .json({ message: "Grupo no encontrado o no pertenece al usuario" });
-      }
-  
-      // Valida que los datos de miembros sean correctos
-      if (!Array.isArray(miembros) || miembros.length === 0) {
-        return res.status(400).json({ message: "No hay miembros para agregar" });
-      }
-  
-      // Formatea y valida los miembros
-      const miembrosFormat = miembros.map((m) => ({
-        nombre: m.nombre,
-        telefono: m.telefono,
-        grupoId: grupo.id,
-      }));
-  
-      // Inserta los miembros en la base de datos
-      const nuevosMiembros = await Miembro.bulkCreate(miembrosFormat, {
-        returning: true,
-      });
-  
-      res.status(201).json(nuevosMiembros);
-    } catch (error) {
-      console.error("Error al importar miembros:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
+  try {
+    const { grupoId } = req.params;
+    const { miembros } = req.body;
+    const userId = req.user.id;
+
+    // Verifica que el grupo pertenece al usuario autenticado
+    const grupo = await Grupo.findOne({
+      where: { id: grupoId, uuid: userId },
+    });
+
+    if (!grupo) {
+      return res
+        .status(404)
+        .json({ message: "Grupo no encontrado o no pertenece al usuario" });
     }
-  });
-  
+
+    // Valida que los datos de miembros sean correctos
+    if (!Array.isArray(miembros) || miembros.length === 0) {
+      return res.status(400).json({ message: "No hay miembros para agregar" });
+    }
+
+    // Formatea y valida los miembros
+    const miembrosFormat = miembros.map((m) => ({
+      nombre: m.nombre,
+      telefono: m.telefono,
+      grupoId: grupo.id,
+    }));
+
+    // Inserta los miembros en la base de datos
+    const nuevosMiembros = await Miembro.bulkCreate(miembrosFormat, {
+      returning: true,
+    });
+
+    res.status(201).json(nuevosMiembros);
+  } catch (error) {
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
 // Obtener solo los nombres de los grupos
 router.get("/nombres", authenticateToken, async (req, res) => {
   try {
@@ -271,7 +269,9 @@ router.get("/nombres", authenticateToken, async (req, res) => {
     });
 
     if (nombresGrupos.length === 0) {
-      return res.status(404).json({ message: "No se encontraron grupos registrados" });
+      return res
+        .status(404)
+        .json({ message: "No se encontraron grupos registrados" });
     }
 
     // Extraer solo los nombres en un arreglo simple
@@ -279,7 +279,6 @@ router.get("/nombres", authenticateToken, async (req, res) => {
 
     res.status(200).json({ nombres });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error obteniendo los nombres de los grupos" });
   }
 });

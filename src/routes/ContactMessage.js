@@ -43,7 +43,6 @@ routerContactMessage.post("/contact-message", async (req, res) => {
       data: newMessage,
     });
   } catch (error) {
-    console.error("Error al guardar el mensaje:", error);
     res
       .status(500)
       .json({ error: "Error al guardar el mensaje en la base de datos" });

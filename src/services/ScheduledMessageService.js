@@ -107,11 +107,10 @@ class ScheduledMessageService {
 
       // Modificar la estructura de los datos para que coincida con lo que necesitas
       const result = scheduledMessages.map((msg) => {
-        // console.log(msg.msg);
         // Convierte `scheduledDate` a una cadena ISO si es un objeto Date
         const fechaHoraISO =
           msg.scheduledDate instanceof Date
-            ? msg.scheduledDate.toISOString() // Convierte a formato "YYYY-MM-DDTHH:mm:ss.sssZ"
+            ? msg.scheduledDate.toISOString() 
             : typeof msg.scheduledDate === "string"
             ? msg.scheduledDate // Si ya es una cadena, úsala directamente
             : null;
@@ -136,7 +135,6 @@ class ScheduledMessageService {
           hora: hora, // Hora "HH:mm"
         };
       });
-      // console.log(result);
       return result;
     } catch (error) {
       throw new Error(

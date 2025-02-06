@@ -51,7 +51,6 @@ sequelize.sync();
 
 // Middleware para verificar el token JWT
 function verifyToken(req, res, next) {
-  // console.log(req)
   const token = req.headers["authorization"].split(" ")[1];
 
   if (!token) {
@@ -74,26 +73,24 @@ var qrCodes = {}; // Almacena los códigos QR por usuario temporalmente
 
 // Verificar y ejecutar mensajes programados cada minuto
 schedule.scheduleJob("* * * * *", async () => {
-  // console.log("Verificando mensajes programados...");
   const now = new Date();
-  
+
   const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0'); // Meses empiezan en 0
-const day = String(now.getDate()).padStart(2, '0');
-const formattedDate = `${year}-${month}-${day}`;
+  const month = String(now.getMonth() + 1).padStart(2, "0"); // Meses empiezan en 0
+  const day = String(now.getDate()).padStart(2, "0");
+  const formattedDate = `${year}-${month}-${day}`;
 
-// Obtener la hora en formato 'HHMMSS' (sin ':')
-const hours = String(now.getHours()).padStart(2, '0');
-const minutes = String(now.getMinutes()).padStart(2, '0');
-const formattedTime = `${hours}${minutes}00`;
-
+  // Obtener la hora en formato 'HHMMSS' (sin ':')
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const formattedTime = `${hours}${minutes}00`;
 
   try {
     const scheduledMessages = await ScheduledMessageService.getPendingMessages(
-      formattedDate,formattedTime
+      formattedDate,
+      formattedTime
     );
-    // console.log(scheduledMessages);
-    // 
+    //
     for (const scheduledMessage of scheduledMessages) {
       const { id, message, groupId, uuid } = scheduledMessage;
 
@@ -120,11 +117,7 @@ const formattedTime = `${hours}${minutes}00`;
 
         // Actualizar el estado del mensaje a "Enviado"
         await ScheduledMessageService.updateStatus(id, "Enviado", "");
-
-        console.log(`Mensaje con ID ${id} enviado correctamente.`);
       } catch (error) {
-        console.error(`Error enviando mensaje con ID ${id}:`, error);
-
         // Actualizar el estado del mensaje a "Fallido"
         await ScheduledMessageService.updateStatus(
           id,
@@ -158,13 +151,15 @@ async function getGroupMembers(selectedGroup, userId) {
 
 async function handleTestMessage(message, userId) {
   try {
-    const nombre  = clients[userId]?.info?.pushname || ""
-      const personalizedMessage = message.message.replace(
-        /@nombre/g,
-        nombre
-      );
+    const nombre = clients[userId]?.info?.pushname || "";
+    const personalizedMessage = message.message.replace(/@nombre/g, nombre);
     if (message.media) {
-      await sendMediaMessage(message, personalizedMessage, userId, clients?.[uuid]?.info?.me?._serialized ) ;
+      await sendMediaMessage(
+        message,
+        personalizedMessage,
+        userId,
+        clients?.[userId]?.info?.me?._serialized
+      );
     } else {
       await sendTextMessage(personalizedMessage, userId);
     }
@@ -178,7 +173,8 @@ async function sendGroupMessages(message, group, userId) {
   const groupMembers = group.miembros; // Extraer los miembros
   for (const member of groupMembers) {
     const formattedNumber = `${member.telefono}@c.us`;
-    const intervaloTime =(message.intervaloMessage ? message.intervaloMessage : 3 )* 1000;
+    const intervaloTime =
+      (message.intervaloMessage ? message.intervaloMessage : 3) * 1000;
     await new Promise((resolve) => setTimeout(resolve, intervaloTime));
 
     // Crear una copia del mensaje original y personalizarlo
@@ -188,7 +184,7 @@ async function sendGroupMessages(message, group, userId) {
     );
 
     let estadoEnvio = "Enviado";
-    let statusDescripcion = ""
+    let statusDescripcion = "";
     try {
       if (message.media) {
         // Enviar mensaje multimedia
@@ -204,11 +200,10 @@ async function sendGroupMessages(message, group, userId) {
       }
     } catch (error) {
       console.error("Error enviando mensaje:", error);
-      statusDescripcion= error.message
+      statusDescripcion = error.message;
       estadoEnvio = "No Enviado";
     }
 
-    console.log(groupMembers)
     await reportMessageService.createReportMessage({
       numero_cel: member.telefono,
       message: message.message,
@@ -218,12 +213,17 @@ async function sendGroupMessages(message, group, userId) {
       nombre_contacto: member.nombre,
       grupo: group.nombre,
       cuenta_envio: clients[userId].info.me.user,
-      statusDescripcion
+      statusDescripcion,
     });
   }
 }
 
-async function sendMediaMessage(message, textMessage, userId, destinatario = null) {
+async function sendMediaMessage(
+  message,
+  textMessage,
+  userId,
+  destinatario = null
+) {
   try {
     const name = message.urlMedia?.split(/[\\/]/).pop();
     const filePath = path.join(process.cwd(), "public", "files", userId, name);
@@ -245,7 +245,6 @@ async function sendMediaMessage(message, textMessage, userId, destinatario = nul
     await clients[userId].sendMessage(destinatario, media, {
       caption: textMessage,
     });
-
   } catch (error) {
     throw new Error(error);
   }
@@ -263,7 +262,6 @@ const generateQRCode = (qr, userId) => {
         err
       );
     } else {
-      console.log(`QR generado para el usuario ${userId}`);
       qrCodes[userId] = url; // Almacena el QR generado en la estructura qrCodes
     }
   });
@@ -307,34 +305,29 @@ function getMimeType(filePath) {
 }
 // Función para crear o recuperar un cliente para cada usuario
 async function createClient(userId) {
-  // console.log("create : " + userId);
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: userId }), // Cada usuario tendrá su propio almacenamiento de credenciales
+    puppeteer: {
+      args: ["--no-sandbox"],
+    },
   });
 
   // Manejar eventos
   client.on("qr", (qr) => {
-    console.log(`QR para usuario ${userId} generado`);
     generateQRCode(qr, userId); // Llamar a la función para manejar la generación del QR
   });
 
   client.on("ready", () => {
-    console.log(`Cliente para usuario ${userId} está listo!`);
     delete qrCodes[userId]; // Eliminar el QR una vez autenticado
   });
 
   client.on("authenticated", () => {
-    console.log(`Usuario ${userId} autenticado`);
     if (qrCodes[userId]) {
       delete qrCodes[userId]; // Elimina el QR solo si existe
-      console.log(
-        `Código QR eliminado para el usuario ${userId} tras autenticación`
-      );
     }
   });
 
   client.on("disconnected", (reason) => {
-    console.log(`Cliente para usuario ${userId} desconectado: ${reason}`);
     delete clients[userId]; // Remover el cliente cuando se desconecta
   });
 
@@ -384,28 +377,30 @@ app.post("/api/start-session", verifyToken, async (req, res) => {
 app.get("/api/get-qr/", verifyToken, (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
-  const userId = req.userId;
-  console.log("get-qr: " + userId);
-  if (!clients[userId]) {
-    return res
-      .status(404)
-      .json({ message: "Sesión no encontrada para este usuario" });
-  }
+  try {
+    const userId = req.userId;
+    if (!clients[userId]) {
+      return res
+        .status(404)
+        .json({ message: "Sesión no encontrada para este usuario" });
+    }
 
-  if (
-    clients[userId] &&
-    clients[userId].info &&
-    clients[userId].info.me &&
-    clients[userId].info.me.user
-  ) {
-    return res.status(200).json({ qr: "", client: clients[userId].info.me });
-  }
-  const qrCode = qrCodes[userId];
-  // console.log(qrCodes)
-  if (qrCode) {
-    res.status(200).json({ qr: qrCode });
-  } else {
-    res.status(404).json({ message: "QR no disponible o ya autenticado" });
+    if (
+      clients[userId] &&
+      clients[userId].info &&
+      clients[userId].info.me &&
+      clients[userId].info.me.user
+    ) {
+      return res.status(200).json({ qr: "", client: clients[userId].info.me });
+    }
+    const qrCode = qrCodes[userId];
+    if (qrCode) {
+      res.status(200).json({ qr: qrCode });
+    } else {
+      res.status(404).json({ message: "QR no disponible o ya autenticado" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Error en el servidor" });
   }
 });
 
@@ -414,7 +409,6 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
 
   const { selectedMessage, selectedGroup, isPrueba } = req.body;
   const userId = req.userId;
-console.log(req.body);
   if (!clients[userId]) {
     return res.status(404).json({
       status: "Error",
@@ -428,7 +422,6 @@ console.log(req.body);
       return res.status(404).json({ message: "Mensaje no encontrado" });
 
     const groupMembers = await getGroupMembers(selectedGroup, userId);
-    console.log(groupMembers);
     if (!groupMembers)
       return res.status(404).json({ message: "Grupo no encontrado" });
 
@@ -446,7 +439,6 @@ console.log(req.body);
     setImmediate(async () => {
       try {
         await sendGroupMessages(message, groupMembers, userId);
-        console.log("Mensajes enviados correctamente");
       } catch (error) {
         console.error("Error enviando mensajes:", error);
       }
@@ -475,7 +467,6 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
 
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true });
-        console.log("Sesión eliminada correctamente");
       }
 
       return res.status(200).json({
@@ -504,14 +495,12 @@ app.post("/api/contactsWhatsApp", verifyToken, async (req, res) => {
     }
 
     const numbers = await clients[userId].getContacts();
-    console.log(numbers);
     // Si no se encuentra al usuario
     if (!numbers) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
     const filteredNumbers = [];
-    const seenNames = new Set();
 
     numbers.forEach((contact) => {
       // Ignorar contactos con `id.server` igual a "lid"
@@ -519,22 +508,13 @@ app.post("/api/contactsWhatsApp", verifyToken, async (req, res) => {
         return;
       }
 
-      // // Si el nombre ya fue visto, ignorarlo
-      // if (seenNames.has(contact.pushname)) {
-      //   return;
-      // }
-
-      // // Agregar nombre al conjunto y contacto filtrado a la lista
-      // seenNames.add(contact.pushname);
       filteredNumbers.push({
         name: contact.name || contact.pushname || "Sin nombre", // Valor por defecto
         number: contact.number,
       });
     });
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).json({ data: filteredNumbers });
   } catch (error) {
-    console.error("Error en la búsqueda de contactos:", error);
     res.status(500).json({ message: error.message });
   }
 });

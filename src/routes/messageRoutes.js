@@ -30,35 +30,16 @@ const upload = multer({ storage });
 // Obtener todos los mensajes
 router.get("/", authenticateToken, async (req, res) => {
   try {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     const userId = req.user.id;
     const messages = await messageService.getAllMessages(userId);
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json(messages);
   } catch (error) {
-    console.log(error);
     res.status(500).json({ error: "Error al obtener los mensajes" });
   }
 });
 
-// // Crear un nuevo mensaje
-// router.post("/", authenticateToken, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const { abreviacion, message, intervaloMessage, urlMedia, media } =
-//       req.body;
-//     const newMessage = await messageService.createMessage({
-//       abreviacion,
-//       message,
-//       intervaloMessage,
-//       urlMedia,
-//       media,
-//       uuid: userId,
-//     });
-//     res.json(newMessage);
-//   } catch (error) {
-//     res.status(500).json({ error: "Error al crear el mensaje" });
-//   }
-// });
+
 
 // Crear un nuevo mensaje
 router.post("/", authenticateToken, upload.single("file"), async (req, res) => {
@@ -80,7 +61,6 @@ router.post("/", authenticateToken, upload.single("file"), async (req, res) => {
     console.log(newMessage);
     res.json(newMessage);
   } catch (error) {
-    console.error("Error al crear el mensaje:", error);
     res.status(500).json({ error: "Error al crear el mensaje" });
   }
 });
@@ -129,7 +109,6 @@ router.put("/:id", authenticateToken, upload.single("file"), async (req, res) =>
         media,
       });
     } catch (error) {
-      console.error("Error al editar el mensaje:", error);
       res.status(500).json({ error: "Error al editar el mensaje" });
     }
   });

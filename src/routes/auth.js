@@ -14,50 +14,54 @@ dotenv.config();
 // Endpoint para crear un nuevo usuario
 router.post("/registerUser", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  try {
+    const {
+      nombres,
+      apellidos,
+      email,
+      password,
+      fecha_nacimiento,
+      genero,
+      numero_celular,
+    } = req.body;
 
-  const { nombres, apellidos, email, password, fecha_nacimiento, genero, numero_celular } =
-    req.body;
+    // Validación de campos
+    const validationErrors = [];
 
-  // Validación de campos
-  const validationErrors = [];
+    if (!nombres || typeof nombres !== "string") {
+      validationErrors.push('El campo "nombres" es obligatorio.');
+    }
 
-  if (!nombres || typeof nombres !== "string") {
-    validationErrors.push('El campo "nombres" es obligatorio.');
-  }
+    if (!apellidos || typeof apellidos !== "string") {
+      validationErrors.push('El campo "apellidos" es obligatorio.');
+    }
 
-  if (!apellidos || typeof apellidos !== "string") {
-    validationErrors.push('El campo "apellidos" es obligatorio.');
-  }
+    if (!email || typeof email !== "string") {
+      validationErrors.push('El campo "email" es obligatorio.');
+    }
 
-  if (!email || typeof email !== "string") {
-    validationErrors.push('El campo "email" es obligatorio.');
-  }
+    if (!password || typeof password !== "string") {
+      validationErrors.push('El campo "password" es obligatorio.');
+    }
 
-  if (!password || typeof password !== "string") {
-    validationErrors.push('El campo "password" es obligatorio.');
-  }
+    if (!fecha_nacimiento || !Date.parse(fecha_nacimiento)) {
+      validationErrors.push('El campo "fecha nacimiento" es obligatorio.');
+    }
 
-  if (!fecha_nacimiento || !Date.parse(fecha_nacimiento)) {
-    validationErrors.push('El campo "fecha nacimiento" es obligatorio.');
-  }
+    const validGeneros = ["masculino", "femenino", "otro"];
+    if (!genero || !validGeneros.includes(genero)) {
+      validationErrors.push('El campo "genero" es obligatorio.');
+    }
 
-  const validGeneros = ["masculino", "femenino", "otro"];
-  if (!genero || !validGeneros.includes(genero)) {
-    validationErrors.push('El campo "genero" es obligatorio.');
-  }
-
-  // Si hay errores de validación, devolverlos
-  if (validationErrors.length > 0) {
-    return res
-      .status(400)
-      .json({
+    // Si hay errores de validación, devolverlos
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
         message: "Errores de validación",
         errors: validationErrors,
         status: false,
       });
-  }
+    }
 
-  try {
     // Verificar si el usuario ya existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
@@ -116,30 +120,26 @@ router.post("/registerUser", async (req, res) => {
     );
 
     // Responder con el usuario creado y el token
-    res
-      .status(201)
-      .json({
-        message:
-          "Usuario creado exitosamente, Ingresa a Tú correo y verifica la cuenta",
-        errors: [],
-        user: newUser.dataValues,
-        status: true,
-      });
+    res.status(201).json({
+      message:
+        "Usuario creado exitosamente, Ingresa a Tú correo y verifica la cuenta",
+      errors: [],
+      user: newUser.dataValues,
+      status: true,
+    });
   } catch (error) {
-    console.error("Error creando usuario:", error);
     res
       .status(500)
       .json({ message: "Error en el servidor", errors: [], status: false });
   }
 });
 
-
 router.post("/login", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
-  const { email, password } = req.body;
-
   try {
+    const { email, password } = req.body;
+
     // Buscar al usuario por email
     const user = await User.findOne({ where: { email } });
 
@@ -148,7 +148,9 @@ router.post("/login", async (req, res) => {
     }
 
     if (!user.verificacion_email) {
-      return res.status(403).json({ message: "Debe verificar su cuenta, Revise su correo" });
+      return res
+        .status(403)
+        .json({ message: "Debe verificar su cuenta, Revise su correo" });
     }
 
     // Verificar la contraseña usando bcrypt
@@ -176,7 +178,6 @@ router.post("/login", async (req, res) => {
         },
       });
     }
-    
 
     // Generar un token JWT
     const token = jwt.sign({ id: user.uuid }, process.env.JWT_SECRET, {
@@ -192,17 +193,17 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error en el login:", error);
-    res.status(500).json({ message: "Error en el servidor", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error en el servidor", error: error.message });
   }
 });
 
-
 // Endpoint para solicitar el reseteo de contraseña
 router.post("/reset-password-request", async (req, res) => {
-  const { email } = req.body;
-
   try {
+    const { email } = req.body;
+
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
@@ -234,7 +235,7 @@ router.post("/reset-password-request", async (req, res) => {
         valueParametros
       );
     }
-    
+
     await sendEmail(
       user.email,
       dataEnvioEmail.Asunto,
@@ -247,26 +248,23 @@ router.post("/reset-password-request", async (req, res) => {
       .status(200)
       .json({ message: "Correo de restablecimiento enviado", status: true });
   } catch (error) {
-    console.error("Error en la solicitud de reseteo:", error);
     res.status(500).json({ message: "Error en el servidor", status: false });
   }
 });
 
 // Endpoint para verificar si el token es válido
 router.post("/verifyResetToken", async (req, res) => {
-  const { token } = req.body;
-
   try {
+    const { token } = req.body;
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ where: { uuid: decoded.id } });
 
     if (!user) {
-      return res
-        .status(404)
-        .json({
-          message: "Token no válido o usuario no encontrado",
-          status: false,
-        });
+      return res.status(404).json({
+        message: "Token no válido o usuario no encontrado",
+        status: false,
+      });
     }
 
     // Verificar que password_changed sea true
@@ -286,9 +284,9 @@ router.post("/verifyResetToken", async (req, res) => {
 
 // Endpoint para establecer una nueva contraseña
 router.post("/resetPassword", async (req, res) => {
-  const { token, newPassword } = req.body;
-
   try {
+    const { token, newPassword } = req.body;
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ where: { uuid: decoded.id } });
 
@@ -318,12 +316,11 @@ router.post("/resetPassword", async (req, res) => {
       .status(200)
       .json({ message: "Contraseña actualizada exitosamente", status: true });
   } catch (error) {
-    console.error("Error al restablecer la contraseña:", error);
     res.status(500).json({ message: "Error en el servidor", status: false });
   }
 });
 
-router.post("/verifyEmail",async (req, res) => {
+router.post("/verifyEmail", async (req, res) => {
   try {
     const { token } = req.body;
 
@@ -362,30 +359,27 @@ router.post("/verifyEmail",async (req, res) => {
       user: { username: user.username },
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ status: false, message: "Error verifying email" });
   }
-})
+});
 
 router.get("/profile", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findOne({ where: { uuid: req.user.id } })
-    if(!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });  
+    const user = await User.findOne({ where: { uuid: req.user.id } });
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
     }
     res.json(user);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Error al obtener perfil" });
   }
 });
 
-
-
 router.put("/profile", authMiddleware, async (req, res) => {
-  const { nombres, apellidos, numero_celular, fecha_nacimiento, genero } = req.body;
-
   try {
+    const { nombres, apellidos, numero_celular, fecha_nacimiento, genero } =
+      req.body;
+
     const updatedUser = await User.update(
       { nombres, apellidos, numero_celular, fecha_nacimiento, genero },
       { where: { uuid: req.user.id } }
@@ -395,12 +389,10 @@ router.put("/profile", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    res.json({message: "Datos de usuario actualizados", updatedUser});
+    res.json({ message: "Datos de usuario actualizados", updatedUser });
   } catch (err) {
     res.status(500).json({ message: "Error al actualizar perfil" });
   }
 });
-
-
 
 module.exports = router;

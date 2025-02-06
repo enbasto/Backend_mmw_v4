@@ -6,13 +6,12 @@ const Payment = require("../models/payments"); // Modelo Payment
 const { Op } = require("sequelize"); // Asegúrate de importar Op
 
 router.post("/validate-payment", authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-
   try {
+    const userId = req.user.id;
+
     // Buscar al usuario
     const user = await User.findOne({ where: { uuid: userId } });
 
-    console.log(user);
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
@@ -20,7 +19,6 @@ router.post("/validate-payment", authenticateToken, async (req, res) => {
     const currentDate = new Date();
 
     // Verificar si el usuario está en periodo de prueba gratuita
-    
 
     // Verificar si el usuario tiene pagos válidos
     const firstDayOfMonth = new Date(
@@ -49,7 +47,7 @@ router.post("/validate-payment", authenticateToken, async (req, res) => {
         message: "El usuario ha realizado el pago para este mes.",
         paymentDetails: payment,
         isFreeTrial: false,
-        isPayment: true
+        isPayment: true,
       });
     }
     if (user.free_trial_end && new Date(user.free_trial_end) >= currentDate) {
@@ -68,15 +66,14 @@ router.post("/validate-payment", authenticateToken, async (req, res) => {
       isPayment: false,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
 
 router.post("/payments-user", authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-
   try {
+    const userId = req.user.id;
+
     // Buscar al usuario junto con sus pagos aprobados
     const user = await User.findOne({ where: { uuid: userId } });
 
@@ -91,18 +88,11 @@ router.post("/payments-user", authenticateToken, async (req, res) => {
         uuid: userId,
       },
     });
-    
 
     const lastApprovedPayment = payment
       .filter((p) => p.payment_status === "APPROVED")
       .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date))
       .slice(0, 1); // Toma el último pago aprobado
-
-    console.log(lastApprovedPayment);
-
-    // Obtener el último pago aprobado
-    // const lastPayment = user.Payments?.[0] || null;
-    console.log(payment.length);
 
     if (payment.length > 0) {
       if (lastApprovedPayment.length > 0) {
@@ -159,7 +149,6 @@ router.post("/payments-user", authenticateToken, async (req, res) => {
       membershipExpires: null,
     });
   } catch (error) {
-    console.error("Error en payments-user:", error);
     return res.status(500).json({ message: "Error interno del servidor" });
   }
 });

@@ -21,10 +21,10 @@ router.post('/create', async (req, res) => {
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     const userId = req.user.id;
 
     const messages = await reportMessageService.getReportMessages(userId);
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).json(messages);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -35,8 +35,8 @@ router.get('/', authenticateToken, async (req, res) => {
 //eliminar todos los registros del usurio
 router.delete('/deleteAll', authenticateToken, async (req, res) => {
   try {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     const userId = req.user.id;
-    console.log("ingreso: " + userId)
     await reportMessageService.deleteAllReportMessages(userId);
     // res.status(200).json(messages);
     res.json({ message: "Reportes eliminados exitosamente" });
