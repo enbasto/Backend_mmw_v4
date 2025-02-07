@@ -164,7 +164,6 @@ async function handleTestMessage(message, userId) {
       await sendTextMessage(personalizedMessage, userId);
     }
   } catch (error) {
-    console.error("Error enviando mensaje de prueba:", error);
     throw new Error("Error al enviar el mensaje de prueba");
   }
 }
@@ -444,7 +443,6 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error en el procesamiento:", error);
     res
       .status(500)
       .json({ status: "Fallo en el procesamiento de los mensajes", error });

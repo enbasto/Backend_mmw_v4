@@ -241,8 +241,8 @@ router.post("/:grupoId/miembros/bulk", authenticateToken, async (req, res) => {
 
     // Formatea y valida los miembros
     const miembrosFormat = miembros.map((m) => ({
-      nombre: m.nombre,
-      telefono: m.telefono,
+      nombre: m.name,
+      telefono: m.number,
       grupoId: grupo.id,
     }));
 
