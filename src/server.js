@@ -306,17 +306,17 @@ async function sendMediaMessage(
       throw new Error(`El archivo no existe: ${filePath}`);
     }
 
-    const fileData = fs.readFileSync(filePath);
-    const base64Data = fileData.toString("base64");
-    const mimeType = getMimeType(filePath);
+    // const fileData = fs.readFileSync(filePath);
+    // const base64Data = fileData.toString("base64");
+    // const mimeType = getMimeType(filePath);
 
-    const media = new MessageMedia(
-      mimeType,
-      base64Data,
-      path.basename(filePath)
-    );
+    // const media = new MessageMedia(
+    //   mimeType,
+    //   base64Data,
+    //   path.basename(filePath)
+    // );
 
-    // const media = MessageMedia.fromFilePath(filePath);
+    const media = MessageMedia.fromFilePath(filePath);
     // const recipient = to || clients[userId].info.me._serialized;
 
     await clients[userId].sendMessage(destinatario, media, {
