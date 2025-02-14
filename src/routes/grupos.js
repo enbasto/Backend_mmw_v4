@@ -4,7 +4,7 @@ const Miembro = require("../models/Miembro");
 const router = express.Router();
 const authenticateToken = require("../middlewares/authMiddleware"); // Importa el middleware
 const logger = require("../middlewares/logger");
-
+const trace = require("stack-trace");
 // Obtener todos los grupos con sus miembros
 router.get("/", authenticateToken, async (req, res) => {
   try {

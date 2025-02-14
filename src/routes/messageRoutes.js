@@ -6,7 +6,7 @@ const fs = require("fs");
 const messageService = require("../services/messageService");
 const authenticateToken = require("../middlewares/authMiddleware"); // Importa el middleware
 const logger = require("../middlewares/logger");
-
+const trace = require("stack-trace");
 
 // Configuración de multer para subir archivos
 const storage = multer.diskStorage({
