@@ -5,6 +5,8 @@ const path = require("path");
 const fs = require("fs");
 const messageService = require("../services/messageService");
 const authenticateToken = require("../middlewares/authMiddleware"); // Importa el middleware
+const logger = require("../middlewares/logger");
+
 
 // Configuración de multer para subir archivos
 const storage = multer.diskStorage({
@@ -27,6 +29,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+
 // Obtener todos los mensajes
 router.get("/", authenticateToken, async (req, res) => {
   try {
@@ -35,6 +38,14 @@ router.get("/", authenticateToken, async (req, res) => {
     const messages = await messageService.getAllMessages(userId);
     res.json(messages);
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al get / messages: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ error: "Error al obtener los mensajes" });
   }
 });
@@ -58,9 +69,16 @@ router.post("/", authenticateToken, upload.single("file"), async (req, res) => {
       media,
       uuid: userId,
     });
-    console.log(newMessage);
     res.json(newMessage);
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al post / messages: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ error: "Error al crear el mensaje" });
   }
 });
@@ -109,6 +127,14 @@ router.put("/:id", authenticateToken, upload.single("file"), async (req, res) =>
         media,
       });
     } catch (error) {
+      const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al put /:id messages: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
       res.status(500).json({ error: "Error al editar el mensaje" });
     }
   });
@@ -136,6 +162,14 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     await messageService.deleteMessage(id, userId);
     res.json({ message: "Mensaje eliminado exitosamente" });
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al delete /:id messages: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ error: "Error al eliminar el mensaje" });
   }
 });

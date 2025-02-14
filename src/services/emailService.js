@@ -27,6 +27,14 @@ const sendEmail = async (to, subject, text, html) => {
       html,
     });
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al sendEmail: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     throw new Error("Error sending email: " + error);
   }
 };

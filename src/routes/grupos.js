@@ -3,6 +3,7 @@ const Grupo = require("../models/Grupo");
 const Miembro = require("../models/Miembro");
 const router = express.Router();
 const authenticateToken = require("../middlewares/authMiddleware"); // Importa el middleware
+const logger = require("../middlewares/logger");
 
 // Obtener todos los grupos con sus miembros
 router.get("/", authenticateToken, async (req, res) => {
@@ -41,6 +42,14 @@ router.get("/", authenticateToken, async (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.status(200).json(gruposData);
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al get / grupos: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ message: "Error obteniendo los grupos" });
   }
 });
@@ -54,6 +63,14 @@ router.post("/", authenticateToken, async (req, res) => {
     const grupo = await Grupo.create({ nombre, uuid: userId });
     res.status(201).json({ status: true, grupo });
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al post / grupos: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ status: false, message: "Error creando grupo" });
   }
 });
@@ -105,7 +122,14 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     res.json(grupoData);
   } catch (error) {
-    console.error(error);
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al get /:id grupos: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ message: "Error actualizando grupo" });
   }
 });
@@ -119,6 +143,14 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     await Grupo.destroy({ where: { id, uuid: userId } });
     res.status(204).json({ message: "Eliminado con éxito" });
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al delete /:id grupos: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ message: "Error eliminando grupo" });
   }
 });
@@ -148,6 +180,14 @@ router.post("/:grupoId/miembros", authenticateToken, async (req, res) => {
     });
     res.status(201).json(miembro);
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error al /:grupoId/miembros: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
     res.status(500).json({ message: "Error agregando miembro" });
   }
 });
@@ -183,7 +223,14 @@ router.put(
 
       res.status(200).json({ message: "Miembro actualizado con éxito" });
     } catch (error) {
-      console.error(error);
+      const stackInfo = trace.parse(error)[0];
+      logger.error(`
+      Error al /:grupoId/miembros/:miembroId: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
       res.status(500).json({ message: "Error actualizando miembro" });
     }
   }
@@ -211,6 +258,14 @@ router.delete(
       await Miembro.destroy({ where: { id: miembroId, grupoId } });
       res.status(204).json({ message: "Miembro eliminado con éxito" });
     } catch (error) {
+      const stackInfo = trace.parse(error)[0];
+      logger.error(`
+        Error al delete /:grupoId/miembros/:miembroId: ${error.message} 
+        Línea: ${stackInfo.getLineNumber()} 
+        Archivo: ${stackInfo.fileName} 
+        Stack: ${error.stack} 
+        Error Completo: ${JSON.stringify(error, null, 2)}
+      `);
       res.status(500).json({ message: "Error eliminando miembro" });
     }
   }
@@ -253,6 +308,14 @@ router.post("/:grupoId/miembros/bulk", authenticateToken, async (req, res) => {
 
     res.status(201).json(nuevosMiembros);
   } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+        Error al /:grupoId/miembros/bulk: ${error.message} 
+        Línea: ${stackInfo.getLineNumber()} 
+        Archivo: ${stackInfo.fileName} 
+        Stack: ${error.stack} 
+        Error Completo: ${JSON.stringify(error, null, 2)}
+      `);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
@@ -279,7 +342,17 @@ router.get("/nombres", authenticateToken, async (req, res) => {
 
     res.status(200).json({ nombres });
   } catch (error) {
-    res.status(500).json({ message: "Error obteniendo los nombres de los grupos" });
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+        Error al /nombres: ${error.message} 
+        Línea: ${stackInfo.getLineNumber()} 
+        Archivo: ${stackInfo.fileName} 
+        Stack: ${error.stack} 
+        Error Completo: ${JSON.stringify(error, null, 2)}
+      `);
+    res
+      .status(500)
+      .json({ message: "Error obteniendo los nombres de los grupos" });
   }
 });
 

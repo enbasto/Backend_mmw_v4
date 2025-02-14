@@ -2,7 +2,7 @@ const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const express = require("express");
 const logger = require("./middlewares/logger");
 const schedule = require("node-schedule");
-const fs = require("fs");
+const fs = require("fs").promises;
 const path = require("path");
 const qrcode = require("qrcode"); // Librería para convertir el QR en base64
 const dotenv = require("dotenv");
@@ -30,8 +30,6 @@ const Grupo = require("./models/Grupo");
 const Miembro = require("./models/Miembro"); // Importa el modelo Miembro
 require("./models/associations"); //  Importa el archivo de asociacio
 dotenv.config();
-const trace = require("stack-trace");
-require("events").EventEmitter.defaultMaxListeners = 20;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -40,28 +38,34 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
 
+
 app.use((req, res, next) => {
   logger.info(`Método: ${req.method}, URL: ${req.url}`);
   next();
 });
+
 
 // Conexión a la base de datos
 sequelize
   .authenticate()
   .then(() => {
     console.log("Conexión a la base de datos exitosa");
-    return sequelize.sync();
+    return sequelize.sync(); // Solo en desarrollo
+    // return sequelize.sync({ alter: true }); // Solo en desarrollo
+    // return sequelize.sync({ migrate: true }); // Solo en desarrollo
   })
-  .catch((err) => {
+  .catch((err) =>{
     const stackInfo = trace.parse(err)[0];
     logger.error(`
       Error al conectar con la base de datos: ${err.message} 
-      Línea: ${stackInfo.getLineNumber()} 
+      Línea: ${stackInfo.lineNumber} 
       Archivo: ${stackInfo.fileName} 
       Stack: ${err.stack} 
       Error Completo: ${JSON.stringify(err, null, 2)}
     `);
   });
+
+
 
 // Middleware para verificar el token JWT
 function verifyToken(req, res, next) {
@@ -132,14 +136,6 @@ schedule.scheduleJob("* * * * *", async () => {
         // Actualizar el estado del mensaje a "Enviado"
         await ScheduledMessageService.updateStatus(id, "Enviado", "");
       } catch (error) {
-        const stackInfo = trace.parse(error)[0];
-        logger.error(`
-          Error en el envío de mensaje programado: ${error.message}
-          Línea: ${stackInfo.getLineNumber()} 
-          Archivo: ${stackInfo.fileName} 
-          Stack: ${error.stack} 
-          Error Completo: ${JSON.stringify(error, null, 2)}
-        `);
         // Actualizar el estado del mensaje a "Fallido"
         await ScheduledMessageService.updateStatus(
           id,
@@ -149,61 +145,26 @@ schedule.scheduleJob("* * * * *", async () => {
       }
     }
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error verificando mensajes programados: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
+    console.error("Error verificando mensajes programados:", error);
   }
 });
 
-// async function getMessage(selectedMessage, userId) {
-//   return await messageService.getMessageByIdAndUuid(selectedMessage, userId);
-// }
-
 async function getMessage(selectedMessage, userId) {
-  try {
-    return await messageService.getMessageByIdAndUuid(selectedMessage, userId);
-  } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en getMessage: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-    throw error;
-  }
+  return await messageService.getMessageByIdAndUuid(selectedMessage, userId);
 }
 
 async function getGroupMembers(selectedGroup, userId) {
-  try {
-    const group = await Grupo.findOne({
-      where: { id: selectedGroup, uuid: userId },
-      include: [
-        {
-          model: Miembro,
-          as: "miembros",
-          attributes: ["id", "nombre", "telefono"],
-        },
-      ],
-    });
-    return group ? group : null;
-  } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en getGroupMembers: ${error.message} 
-      Línea: ${stackInfo.lineNumber} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-    throw error;
-  }
+  const group = await Grupo.findOne({
+    where: { id: selectedGroup, uuid: userId },
+    include: [
+      {
+        model: Miembro,
+        as: "miembros",
+        attributes: ["id", "nombre", "telefono"],
+      },
+    ],
+  });
+  return group ? group : null;
 }
 
 async function handleTestMessage(message, userId) {
@@ -221,75 +182,56 @@ async function handleTestMessage(message, userId) {
       await sendTextMessage(personalizedMessage, userId);
     }
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en handleTestMessage: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-    throw error;
+    throw new Error("Error al enviar el mensaje de prueba");
   }
 }
 
 async function sendGroupMessages(message, group, userId) {
-  try {
-    const groupMembers = group.miembros; // Extraer los miembros
-    for (const member of groupMembers) {
-      const formattedNumber = `${member.telefono}@c.us`;
-      const intervaloTime =
-        (message.intervaloMessage ? message.intervaloMessage : 3) * 1000;
-      await new Promise((resolve) => setTimeout(resolve, intervaloTime));
+  const groupMembers = group.miembros; // Extraer los miembros
+  for (const member of groupMembers) {
+    const formattedNumber = `${member.telefono}@c.us`;
+    const intervaloTime =
+      (message.intervaloMessage ? message.intervaloMessage : 3) * 1000;
+    await new Promise((resolve) => setTimeout(resolve, intervaloTime));
 
-      // Crear una copia del mensaje original y personalizarlo
-      const personalizedMessage = message.message.replace(
-        /@nombre/g,
-        member.nombre
-      );
+    // Crear una copia del mensaje original y personalizarlo
+    const personalizedMessage = message.message.replace(
+      /@nombre/g,
+      member.nombre
+    );
 
-      let estadoEnvio = "Enviado";
-      let statusDescripcion = "";
-      try {
-        if (message.media) {
-          // Enviar mensaje multimedia
-          await sendMediaMessage(
-            message,
-            personalizedMessage,
-            userId,
-            formattedNumber
-          );
-        } else {
-          // Enviar mensaje de texto
-          await sendTextMessage(personalizedMessage, userId, formattedNumber);
-        }
-      } catch (error) {
-        statusDescripcion = error.message;
-        estadoEnvio = "No Enviado";
+    let estadoEnvio = "Enviado";
+    let statusDescripcion = "";
+    try {
+      if (message.media) {
+        // Enviar mensaje multimedia
+        await sendMediaMessage(
+          message,
+          personalizedMessage,
+          userId,
+          formattedNumber
+        );
+      } else {
+        // Enviar mensaje de texto
+        await sendTextMessage(personalizedMessage, userId, formattedNumber);
       }
-
-      await reportMessageService.createReportMessage({
-        numero_cel: member.telefono,
-        message: message.message,
-        urlMedia: message.urlMedia,
-        estadoEnvio: estadoEnvio,
-        uuid: userId,
-        nombre_contacto: member.nombre,
-        grupo: group.nombre,
-        cuenta_envio: clients[userId].info.me.user,
-        statusDescripcion,
-      });
+    } catch (error) {
+      console.error("Error enviando mensaje:", error);
+      statusDescripcion = error.message;
+      estadoEnvio = "No Enviado";
     }
-  } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en sendGroupMessages: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-    throw error;
+
+    await reportMessageService.createReportMessage({
+      numero_cel: member.telefono,
+      message: message.message,
+      urlMedia: message.urlMedia,
+      estadoEnvio: estadoEnvio,
+      uuid: userId,
+      nombre_contacto: member.nombre,
+      grupo: group.nombre,
+      cuenta_envio: clients[userId].info.me.user,
+      statusDescripcion,
+    });
   }
 }
 
@@ -306,77 +248,42 @@ async function sendMediaMessage(
       throw new Error(`El archivo no existe: ${filePath}`);
     }
 
-    const fileData = fs.readFileSync(filePath);
-    const base64Data = fileData.toString("base64");
-    const mimeType = getMimeType(filePath);
+    // const fileData = fs.readFileSync(filePath);
+    // const base64Data = fileData.toString("base64");
+    // const mimeType = getMimeType(filePath);
 
-    const media = new MessageMedia(
-      mimeType,
-      base64Data,
-      path.basename(filePath)
-    );
+    // const media = new MessageMedia(
+    //   mimeType,
+    //   base64Data,
+    //   path.basename(filePath)
+    // );
 
-    // const media = MessageMedia.fromFilePath(filePath);
+    const media = MessageMedia.fromFilePath(filePath);
     // const recipient = to || clients[userId].info.me._serialized;
 
     await clients[userId].sendMessage(destinatario, media, {
       caption: textMessage,
     });
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en sendMediaMessage: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-    throw error;
+    throw new Error(error);
   }
 }
 
 async function sendTextMessage(messageText, userId, to = null) {
-  try {
-    const recipient = to || clients[userId].info.me._serialized;
-    await clients[userId].sendMessage(recipient, messageText);
-  } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en sendTextMessage: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${error}
-    `);
-    throw error;
-  }
+  const recipient = to || clients[userId].info.me._serialized;
+  await clients[userId].sendMessage(recipient, messageText);
 }
 const generateQRCode = (qr, userId) => {
-  try {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (err) {
-        const stackInfo = trace.parse(err)[0];
-        logger.error(`
-          Error en generateQRCode: ${err.message} 
-          Línea: ${stackInfo.getLineNumber()} 
-          Archivo: ${stackInfo.fileName} 
-          Stack: ${err.stack} 
-          Error Completo: ${JSON.stringify(error, null, 2)}
-        `);
-      } else {
-        qrCodes[userId] = url; // Almacena el QR generado en la estructura qrCodes
-      }
-    });
-  } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en generateQRCode: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
-  }
+  qrcode.toDataURL(qr, (err, url) => {
+    if (err) {
+      console.error(
+        `Error generando código QR para el usuario ${userId}:`,
+        err
+      );
+    } else {
+      qrCodes[userId] = url; // Almacena el QR generado en la estructura qrCodes
+    }
+  });
 };
 
 /**
@@ -384,7 +291,7 @@ const generateQRCode = (qr, userId) => {
  * @param {string} filePath - Ruta del archivo.
  * @returns {string} Tipo MIME.
  */
-async function getMimeType(filePath) {
+function getMimeType(filePath) {
   const extension = path.extname(filePath).toLowerCase();
 
   const mimeTypes = {
@@ -420,9 +327,7 @@ async function createClient(userId) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: userId }), // Cada usuario tendrá su propio almacenamiento de credenciales
     puppeteer: {
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
-      headless: true, // Modo sin interfaz gráfica para evitar errores de visualización
-      // executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      args: ["--no-sandbox"],
     },
   });
 
@@ -448,6 +353,7 @@ async function createClient(userId) {
   await client.initialize();
   return client;
 }
+
 
 async function getOrCreateClient(userId) {
   if (clients[userId]) {
@@ -494,14 +400,6 @@ app.post("/api/start-session", verifyToken, async (req, res) => {
       .status(200)
       .json({ message: `Sesión iniciada para el usuario ${userId}` });
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en start-session: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
     res.status(500).json({ message: "Error en el servidor" });
   }
 });
@@ -533,30 +431,23 @@ app.get("/api/get-qr/", verifyToken, (req, res) => {
       res.status(404).json({ message: "QR no disponible o ya autenticado" });
     }
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en get-qr: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
     res.status(500).json({ message: "Error en el servidor" });
   }
 });
 
 app.post("/api/send-message", verifyToken, async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  try {
-    const { selectedMessage, selectedGroup, isPrueba } = req.body;
-    const userId = req.userId;
-    if (!clients[userId]) {
-      return res.status(404).json({
-        status: "Error",
-        message: "No tiene ninguna cuenta de WhatsApp vinculada",
-      });
-    }
 
+  const { selectedMessage, selectedGroup, isPrueba } = req.body;
+  const userId = req.userId;
+  if (!clients[userId]) {
+    return res.status(404).json({
+      status: "Error",
+      message: "No tiene ninguna cuenta de WhatsApp vinculada",
+    });
+  }
+
+  try {
     const message = await getMessage(selectedMessage, userId);
     if (!message)
       return res.status(404).json({ message: "Mensaje no encontrado" });
@@ -588,25 +479,10 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
       try {
         await sendGroupMessages(message, groupMembers, userId);
       } catch (error) {
-        const stackInfo = trace.parse(error)[0];
-        logger.error(`
-      Error en setTimeout: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
+        console.error("Error enviando mensajes:", error);
       }
     }, 100); // Retraso de 100ms para evitar bloqueos en el event loop
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en send-message: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
     res
       .status(500)
       .json({ status: "Fallo en el procesamiento de los mensajes", error });
@@ -622,25 +498,20 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
 
     if (clients[userId]) {
       const sessionPath = clients[userId].authStrategy.userDataDir;
-      await clients[userId].logout();
-
       await clients[userId].destroy(); // Cierra la sesión del cliente
+      // await clients[userId].logout()
 
       delete clients[userId]; // Elimina la instancia del cliente
 
+      // if (fs.existsSync(sessionPath)) {
+      //   fs.rmSync(sessionPath, { recursive: true });
+      // }
       try {
-        if (fs.existsSync(sessionPath)) {
-          fs.rmSync(sessionPath, { recursive: true, force: true });
+        if (await fs.access(sessionPath)) {
+          await fs.rm(sessionPath, { recursive: true });
         }
       } catch (error) {
-        const stackInfo = trace.parse(error)[0];
-        logger.error(`
-      Error en sessionPath: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
+        console.error("Error al eliminar la sesión:", error);
       }
 
       return res.status(200).json({
@@ -650,14 +521,7 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
 
     res.status(404).json({ message: "Sesión no encontrada" });
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en close-session: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
+    console.error("Error cerrando sesión:", error);
     res.status(500).json({ message: "Error cerrando sesión", error });
   }
 });
@@ -696,14 +560,6 @@ app.post("/api/contactsWhatsApp", verifyToken, async (req, res) => {
     });
     res.status(200).json({ data: filteredNumbers });
   } catch (error) {
-    const stackInfo = trace.parse(error)[0];
-    logger.error(`
-      Error en contactsWhatsApp: ${error.message} 
-      Línea: ${stackInfo.getLineNumber()} 
-      Archivo: ${stackInfo.fileName} 
-      Stack: ${error.stack} 
-      Error Completo: ${JSON.stringify(error, null, 2)}
-    `);
     res.status(500).json({ message: error.message });
   }
 });

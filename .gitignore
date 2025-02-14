@@ -9,6 +9,7 @@
 #cache
 /.wwebjs_auth
 /.wwebjs_cache
+/logs
 /Public/files
 
 # production
