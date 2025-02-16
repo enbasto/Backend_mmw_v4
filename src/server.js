@@ -622,15 +622,43 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
 
     if (clients[userId]) {
       const sessionPath = clients[userId].authStrategy.userDataDir;
-      await clients[userId].logout();
+      // await clients[userId].logout();
 
       await clients[userId].destroy(); // Cierra la sesión del cliente
 
       delete clients[userId]; // Elimina la instancia del cliente
 
       try {
-        if (fs.existsSync(sessionPath)) {
-          fs.rmSync(sessionPath, { recursive: true, force: true });
+        // if (fs.existsSync(sessionPath)) {
+        //   fs.rmSync(sessionPath, { recursive: true, force: true });
+        // }
+
+        const dirExists = await fs.promises
+          .access(sessionPath)
+          .then(() => true)
+          .catch(() => false);
+
+        if (dirExists) {
+          const dirContents = await fs.promises.readdir(sessionPath);
+
+          if (dirContents.length > 0) {
+
+            // Delete all files and subdirectories inside userDataDir
+            await Promise.all(
+              dirContents.map((file) =>
+                fs.promises.rm(path.join(sessionPath, file), {
+                  recursive: true,
+                  force: true,
+                })
+              )
+            );
+          }
+
+          // Now remove the userDataDir itself
+          await fs.promises.rm(sessionPath, {
+            recursive: true,
+            force: true,
+          });
         }
       } catch (error) {
         const stackInfo = trace.parse(error)[0];
