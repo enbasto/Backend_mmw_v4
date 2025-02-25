@@ -442,6 +442,7 @@ async function createClient(userId) {
   });
 
   client.on("disconnected", (reason) => {
+    logger.info(`Cliente desconectado: ${userId} - ${reason}`);
     delete clients[userId]; // Remover el cliente cuando se desconecta
   });
 
@@ -507,15 +508,39 @@ app.post("/api/start-session", verifyToken, async (req, res) => {
 });
 
 // Endpoint para obtener el QR de un usuario (con autenticación JWT)
-app.get("/api/get-qr/", verifyToken, (req, res) => {
+app.get("/api/get-qr/", verifyToken, async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   try {
     const userId = req.userId;
     if (!clients[userId]) {
-      return res
-        .status(404)
-        .json({ message: "Sesión no encontrada para este usuario" });
+
+      // Now remove the userDataDir itself
+      try {
+        let userDataDir = path.join(
+          process.cwd(),
+          ".wwebjs_auth",
+          `session-${userId}`
+        );
+        await fs.promises.rm(userDataDir, {
+          recursive: true,
+          force: true,
+        });
+      } catch (error) {
+        const stackInfo = trace.parse(error)[0];
+        logger.error(`
+          Error en userDataDir: ${error.message} 
+          Línea: ${stackInfo.getLineNumber()} 
+          Archivo: ${stackInfo.fileName} 
+          Stack: ${error.stack} 
+          Error Completo: ${JSON.stringify(error, null, 2)}
+        `);
+      }
+      const client = await createClient(userId);
+      clients[userId] = client;
+      // return res
+      //   .status(404)
+      //   .json({ message: "Sesión no encontrada para este usuario" });
     }
 
     if (
@@ -642,7 +667,6 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
           const dirContents = await fs.promises.readdir(sessionPath);
 
           if (dirContents.length > 0) {
-
             // Delete all files and subdirectories inside userDataDir
             await Promise.all(
               dirContents.map((file) =>
