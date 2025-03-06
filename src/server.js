@@ -104,6 +104,8 @@ schedule.scheduleJob("* * * * *", async () => {
       formattedDate,
       formattedTime
     );
+    console.log("scheduledMessages:")
+    console.log(scheduledMessages)
     //
     for (const scheduledMessage of scheduledMessages) {
       const { id, message, groupId, uuid } = scheduledMessage;
@@ -121,6 +123,8 @@ schedule.scheduleJob("* * * * *", async () => {
             "No se Encontraron Credenciales de WhatsApp"
           );
         }
+        await ScheduledMessageService.updateStatus(id, "Enviando", "");
+
         // Obtener miembros del grupo
         const groupMembers = await getGroupMembers(groupId, uuid);
 

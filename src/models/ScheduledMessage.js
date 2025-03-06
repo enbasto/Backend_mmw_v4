@@ -27,7 +27,7 @@ const ScheduledMessage = sequelize.define('ScheduledMessage', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('Pendiente', 'Enviado', 'Fallido'),
+    type: DataTypes.ENUM('Pendiente', 'Enviado', 'Fallido', 'Enviando'),
     defaultValue: 'Pendiente',
     allowNull: false,
   },

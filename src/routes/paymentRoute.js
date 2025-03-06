@@ -20,24 +20,13 @@ router.post("/validate-payment", authenticateToken, async (req, res) => {
 
     // Verificar si el usuario está en periodo de prueba gratuita
 
-    // Verificar si el usuario tiene pagos válidos
-    const firstDayOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const lastDayOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      0
-    );
 
     const payment = await Payment.findOne({
       where: {
         uuid: userId,
         payment_status: "APPROVED",
-        payment_date: {
-          [Op.between]: [firstDayOfMonth, lastDayOfMonth],
+        due_date: {
+          [Op.gte]: currentDate,
         },
       },
     });
@@ -93,6 +82,7 @@ router.post("/payments-user", authenticateToken, async (req, res) => {
       .filter((p) => p.payment_status === "APPROVED")
       .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date))
       .slice(0, 1); // Toma el último pago aprobado
+      console.log(lastApprovedPayment)
 
     if (payment.length > 0) {
       if (lastApprovedPayment.length > 0) {
