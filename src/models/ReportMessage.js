@@ -23,6 +23,10 @@ const ReportMessage = sequelize.define('ReportMessage', {
     type: DataTypes.STRING(50),
     allowNull: false,
   },
+  descripcionEnvio: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
   uuid: {
     type: DataTypes.CHAR(36),
     allowNull: false,

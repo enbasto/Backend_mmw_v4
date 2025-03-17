@@ -11,8 +11,6 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const sequelize = require("./config/database");
 const authRoutes = require("./routes/auth"); // Rutas de autenticación
-const User = require("./models/user"); // Modelo de usuario
-const Number = require("./models/number");
 const routerContactMessage = require("./routes/ContactMessage"); //
 const routerNumbers = require("./routes/numbersRouter"); //
 const gruposRoutes = require("./routes/grupos");
@@ -31,7 +29,7 @@ const Miembro = require("./models/Miembro"); // Importa el modelo Miembro
 require("./models/associations"); //  Importa el archivo de asociacio
 dotenv.config();
 const trace = require("stack-trace");
-require("events").EventEmitter.defaultMaxListeners = 20;
+require("events").EventEmitter.defaultMaxListeners = 50;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -104,8 +102,7 @@ schedule.scheduleJob("* * * * *", async () => {
       formattedDate,
       formattedTime
     );
-    console.log("scheduledMessages:")
-    console.log(scheduledMessages)
+
     //
     for (const scheduledMessage of scheduledMessages) {
       const { id, message, groupId, uuid } = scheduledMessage;
@@ -115,13 +112,15 @@ schedule.scheduleJob("* * * * *", async () => {
           const client = await getOrCreateClient(uuid);
           clients[uuid] = client;
         }
-        if (!clients?.[uuid]?.info?.me?._serialized) {
+        
+        if (!clients?.[uuid]?.info) {
           // El objeto o la propiedad no existe, realiza aquí las acciones necesarias
           await ScheduledMessageService.updateStatus(
             id,
             "Fallido",
             "No se Encontraron Credenciales de WhatsApp"
           );
+          continue;
         }
         await ScheduledMessageService.updateStatus(id, "Enviando", "");
 
@@ -255,20 +254,25 @@ async function sendGroupMessages(message, group, userId) {
       let estadoEnvio = "Enviado";
       let statusDescripcion = "";
       try {
-        if (message.media) {
-          // Enviar mensaje multimedia
-          await sendMediaMessage(
-            message,
-            personalizedMessage,
-            userId,
-            formattedNumber
-          );
+        if (clients[userId]?.info) {
+          if (message.media) {
+            // Enviar mensaje multimedia
+            await sendMediaMessage(
+              message,
+              personalizedMessage,
+              userId,
+              formattedNumber
+            );
+          } else {
+            // Enviar mensaje de texto
+            await sendTextMessage(personalizedMessage, userId, formattedNumber);
+          }
         } else {
-          // Enviar mensaje de texto
-          await sendTextMessage(personalizedMessage, userId, formattedNumber);
+          statusDescripcion = "WhatsApp desvinculado";
+          estadoEnvio = "No Enviado";
         }
       } catch (error) {
-        statusDescripcion = error.message;
+        statusDescripcion = error.message.slice(0, 200);;
         estadoEnvio = "No Enviado";
       }
 
@@ -280,7 +284,7 @@ async function sendGroupMessages(message, group, userId) {
         uuid: userId,
         nombre_contacto: member.nombre,
         grupo: group.nombre,
-        cuenta_envio: clients[userId].info.me.user,
+        cuenta_envio:  clients?.[userId]?.info?.me?.user ?? "",
         statusDescripcion,
       });
     }
@@ -341,7 +345,7 @@ async function sendMediaMessage(
 
 async function sendTextMessage(messageText, userId, to = null) {
   try {
-    const recipient = to || clients[userId].info.me._serialized;
+    const recipient = to || clients[userId]?.info?.me?._serialized;
     await clients[userId].sendMessage(recipient, messageText);
   } catch (error) {
     const stackInfo = trace.parse(error)[0];
@@ -425,8 +429,7 @@ async function createClient(userId) {
     authStrategy: new LocalAuth({ clientId: userId }), // Cada usuario tendrá su propio almacenamiento de credenciales
     puppeteer: {
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
-      headless: true, // Modo sin interfaz gráfica para evitar errores de visualización
-      // executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      headless: true, // Modo sin interfaz gráfica para evitar errores de
     },
   });
 
@@ -518,7 +521,6 @@ app.get("/api/get-qr/", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     if (!clients[userId]) {
-
       // Now remove the userDataDir itself
       try {
         let userDataDir = path.join(
@@ -542,9 +544,6 @@ app.get("/api/get-qr/", verifyToken, async (req, res) => {
       }
       const client = await createClient(userId);
       clients[userId] = client;
-      // return res
-      //   .status(404)
-      //   .json({ message: "Sesión no encontrada para este usuario" });
     }
 
     if (
@@ -579,7 +578,8 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
   try {
     const { selectedMessage, selectedGroup, isPrueba } = req.body;
     const userId = req.userId;
-    if (!clients[userId]) {
+
+    if (!clients[userId]?.info) {
       return res.status(404).json({
         status: "Error",
         message: "No tiene ninguna cuenta de WhatsApp vinculada",
@@ -603,15 +603,6 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
 
     // Respuesta enviada al cliente antes de procesar el envío de mensajes
     res.status(200).json({ message: "Mensajes en proceso de envío" });
-
-    // Ejecutar `sendGroupMessages` en segundo plano
-    // setImmediate(async () => {
-    //   try {
-    //     await sendGroupMessages(message, groupMembers, userId);
-    //   } catch (error) {
-    //     console.error("Error enviando mensajes:", error);
-    //   }
-    // });
 
     setTimeout(async () => {
       try {
@@ -638,7 +629,7 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
     `);
     res
       .status(500)
-      .json({ status: "Fallo en el procesamiento de los mensajes", error });
+      .json({ message: error.message });
   }
 });
 
@@ -649,7 +640,7 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
 
-    if (clients[userId]) {
+    if (clients[userId]?.info) {
       const sessionPath = clients[userId].authStrategy.userDataDir;
       // await clients[userId].logout();
 
@@ -658,9 +649,7 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
       delete clients[userId]; // Elimina la instancia del cliente
 
       try {
-        // if (fs.existsSync(sessionPath)) {
-        //   fs.rmSync(sessionPath, { recursive: true, force: true });
-        // }
+        
 
         const dirExists = await fs.promises
           .access(sessionPath)
@@ -724,7 +713,7 @@ app.post("/api/contactsWhatsApp", verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
 
-    if (!clients[userId]) {
+    if (!clients[userId]?.info) {
       return res.status(404).json({
         status: "Error",
         message: "No tiene ninguna cuenta de WhatsApp vinculada",

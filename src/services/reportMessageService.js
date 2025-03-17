@@ -10,7 +10,8 @@ const createReportMessage = async (data) => {
       uuid: data.uuid,
       nombre_contacto: data.nombre_contacto || null, // Permite que sea null
       grupo: data.grupo || null, // Permite que sea null
-      cuenta_envio: data.cuenta_envio
+      cuenta_envio: data.cuenta_envio,
+      descripcionEnvio: data.statusDescripcion || null
     });
     return newMessage;
   } catch (error) {
