@@ -12,7 +12,7 @@ const bodyParser = require("body-parser");
 const sequelize = require("./config/database");
 const authRoutes = require("./routes/auth"); // Rutas de autenticación
 const routerContactMessage = require("./routes/ContactMessage"); //
-const routerNumbers = require("./routes/numbersRouter"); //
+// const routerNumbers = require("./routes/numbersRouter"); //
 const gruposRoutes = require("./routes/grupos");
 const messageRoutes = require("./routes/messageRoutes");
 const reportMessagesRoutes = require("./routes/reportMessagesRouter");
@@ -29,7 +29,8 @@ const Miembro = require("./models/Miembro"); // Importa el modelo Miembro
 require("./models/associations"); //  Importa el archivo de asociacio
 dotenv.config();
 const trace = require("stack-trace");
-require("events").EventEmitter.defaultMaxListeners = 50;
+const { canSendMessages, incrementSendMessages } = require("./functions/users");
+require("events").EventEmitter.defaultMaxListeners = 0;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -112,7 +113,7 @@ schedule.scheduleJob("* * * * *", async () => {
           const client = await getOrCreateClient(uuid);
           clients[uuid] = client;
         }
-        
+
         if (!clients?.[uuid]?.info) {
           // El objeto o la propiedad no existe, realiza aquí las acciones necesarias
           await ScheduledMessageService.updateStatus(
@@ -253,26 +254,39 @@ async function sendGroupMessages(message, group, userId) {
 
       let estadoEnvio = "Enviado";
       let statusDescripcion = "";
+      const puedeEnviar = await canSendMessages(userId);
+
       try {
-        if (clients[userId]?.info) {
-          if (message.media) {
-            // Enviar mensaje multimedia
-            await sendMediaMessage(
-              message,
-              personalizedMessage,
-              userId,
-              formattedNumber
-            );
+        if (puedeEnviar) {
+          if (clients[userId]?.info) {
+            if (message.media) {
+              // Enviar mensaje multimedia
+              await sendMediaMessage(
+                message,
+                personalizedMessage,
+                userId,
+                formattedNumber
+              );
+            } else {
+              // Enviar mensaje de texto
+              await sendTextMessage(
+                personalizedMessage,
+                userId,
+                formattedNumber
+              );
+            }
+            await incrementSendMessages(userId, 1);
           } else {
-            // Enviar mensaje de texto
-            await sendTextMessage(personalizedMessage, userId, formattedNumber);
+            statusDescripcion = "WhatsApp desvinculado";
+            estadoEnvio = "No Enviado";
           }
         } else {
-          statusDescripcion = "WhatsApp desvinculado";
+          statusDescripcion =
+            "Ha alcanzado el límite de mensajes en el periodo de prueba.";
           estadoEnvio = "No Enviado";
         }
       } catch (error) {
-        statusDescripcion = error.message.slice(0, 200);;
+        statusDescripcion = error.message.slice(0, 200);
         estadoEnvio = "No Enviado";
       }
 
@@ -284,9 +298,13 @@ async function sendGroupMessages(message, group, userId) {
         uuid: userId,
         nombre_contacto: member.nombre,
         grupo: group.nombre,
-        cuenta_envio:  clients?.[userId]?.info?.me?.user ?? "",
+        cuenta_envio: clients?.[userId]?.info?.me?.user ?? "",
         statusDescripcion,
       });
+
+      if (!puedeEnviar) {
+        break;
+      }
     }
   } catch (error) {
     const stackInfo = trace.parse(error)[0];
@@ -426,10 +444,14 @@ async function getMimeType(filePath) {
 // Función para crear o recuperar un cliente para cada usuario
 async function createClient(userId) {
   const client = new Client({
-    authStrategy: new LocalAuth({ clientId: userId }), // Cada usuario tendrá su propio almacenamiento de credenciales
+    authStrategy: new LocalAuth({ 
+      clientId: userId, 
+      // dataPath: "" //ruta para credenciales
+    }), // Cada usuario tendrá su propio almacenamiento de credenciales
     puppeteer: {
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
       headless: true, // Modo sin interfaz gráfica para evitar errores de
+      // executablePath: "" // ruta para el programa de crhome
     },
   });
 
@@ -450,6 +472,10 @@ async function createClient(userId) {
 
   client.on("disconnected", (reason) => {
     logger.info(`Cliente desconectado: ${userId} - ${reason}`);
+    //remove listener
+    // Elimina todos los listeners del cliente
+    client.removeAllListeners();
+
     delete clients[userId]; // Remover el cliente cuando se desconecta
   });
 
@@ -470,7 +496,7 @@ async function getOrCreateClient(userId) {
 // Rutas de autenticación
 app.use("/api/auth", authRoutes);
 app.use("/api", routerContactMessage);
-app.use("/api", routerNumbers);
+// app.use("/api", routerNumbers);
 app.use("/api/grupos", gruposRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/report", reportMessagesRoutes);
@@ -601,6 +627,12 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
         .json({ message: "Mensaje de prueba en proceso de envío" });
     }
 
+    const validFree = await canSendMessages(userId);
+    if (!validFree) {
+      return res
+        .status(404)
+        .json({ message: "Lo sentimos tú periodo de prueba ya termino." });
+    }
     // Respuesta enviada al cliente antes de procesar el envío de mensajes
     res.status(200).json({ message: "Mensajes en proceso de envío" });
 
@@ -627,9 +659,7 @@ app.post("/api/send-message", verifyToken, async (req, res) => {
       Stack: ${error.stack} 
       Error Completo: ${JSON.stringify(error, null, 2)}
     `);
-    res
-      .status(500)
-      .json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -649,8 +679,6 @@ app.post("/api/close-session", verifyToken, async (req, res) => {
       delete clients[userId]; // Elimina la instancia del cliente
 
       try {
-        
-
         const dirExists = await fs.promises
           .access(sessionPath)
           .then(() => true)

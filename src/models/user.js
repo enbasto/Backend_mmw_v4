@@ -28,7 +28,7 @@ const User = sequelize.define(
     },
     activo: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true,
+      defaultValue: false,
     },
     uuid: {
       type: DataTypes.UUID,
@@ -78,6 +78,11 @@ const User = sequelize.define(
       allowNull: true, // Permitir valores nulos
       defaultValue: null, // Usar null como valor por defecto,
     },
+    messages_sent:{
+      type: DataTypes.INTEGER,
+      allowNull: false, 
+      defaultValue: 0, // Usar null como valor por defecto,
+    }
   },
   {
     tableName: "users",

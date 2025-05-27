@@ -9,6 +9,7 @@ const Payment = require("../models/payments");
 const { Op } = require("sequelize"); // Asegúrate de importar Op
 const { sendEmail } = require("../services/emailService");
 const authMiddleware = require("../middlewares/authMiddleware");
+const Allowed_domain = require("../models/allowed_domains");
 
 dotenv.config();
 // Endpoint para crear un nuevo usuario
@@ -68,6 +69,22 @@ router.post("/registerUser", async (req, res) => {
       return res
         .status(400)
         .json({ message: "El usuario ya existe", errors: [], status: false });
+    }
+    // Extraer el dominio del email
+    const emailDomain = email.split("@")[1];
+    const allowedNotDomain = await Allowed_domain.findOne({
+      where: { domain: emailDomain },
+    });
+
+  
+  
+    if (!allowedNotDomain) {
+      return res.status(400).json({
+        message:
+          "Su correo no es permitido por el dominio. Contacte con soporte.",
+        errors: [],
+        status: false,
+      });
     }
 
     // Hashear la contraseña
@@ -144,13 +161,17 @@ router.post("/login", async (req, res) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({ message: "Usurio no Registrado." });
+      return res.status(404).json({ message: "Usuario no Registrado." });
     }
 
     if (!user.verificacion_email) {
       return res
         .status(403)
         .json({ message: "Debe verificar su cuenta, Revise su correo" });
+    }
+
+    if (!user.activo) {
+      return res.status(404).json({ message: "Usuario no esta activo." });
     }
 
     // Verificar la contraseña usando bcrypt
@@ -337,7 +358,9 @@ router.post("/verifyEmail", async (req, res) => {
     const user = await User.findOne({ where: { email: decodedUsername } });
 
     if (!user) {
-      return res.status(404).json({ status: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: false, message: "Usuario no encontrado" });
     }
 
     // Verificar si el correo ya está verificado
@@ -350,6 +373,7 @@ router.post("/verifyEmail", async (req, res) => {
 
     // Actualizar el estado de email_verified a true
     user.verificacion_email = true;
+    user.activo = true;
     await user.save();
 
     // Responder que el correo ha sido verificado
