@@ -145,7 +145,7 @@ app.use("/api/schedule-message", scheduleRoute);
 app.use("/api/payments", paymentRoute);
 app.use("/api", userRoutes)
 // Rutas publica
-app.use("/public", express.static("public"));
+app.use("/public", express.static("Public"));
 
 app.listen(port, () => {
   console.log(`API escuchando en http://localhost:${port}`);

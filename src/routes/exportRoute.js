@@ -51,7 +51,7 @@ router.post("/export", authenticateToken, async (req, res) => {
     }
 
     // Crear directorio si no existe
-    const userDir = path.join(process.cwd(), "public", "files", req.user.id);
+    const userDir = path.join(process.cwd(), "Public", "files", req.user.id);
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }
@@ -160,7 +160,7 @@ router.post("/export", authenticateToken, async (req, res) => {
 
       writeStream.on("finish", () => {
         const publicUrl = path.join(
-          "public",
+          "Public",
           "files",
           req.user.id,
           "reporte.pdf"

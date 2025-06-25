@@ -12,7 +12,7 @@ const trace = require("stack-trace");
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Construir la ruta del directorio dinámico basado en req.user.id
-    const userDir = `public/files/${req.user.id}`;
+    const userDir = `Public/files/${req.user.id}`;
 
     // Verificar si el directorio existe, si no, crearlo
     if (!fs.existsSync(userDir)) {
