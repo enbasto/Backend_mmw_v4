@@ -11,10 +11,15 @@ const reportMessageService = require("../services/reportMessageService");
 
 router.post("/export", authenticateToken, async (req, res) => {
   try {
-  
-  const { format, reportType, selectedGroup, selectedContact, startDate, endDate } = req.body;
-  const userId = req.user.id;
-
+    const {
+      format,
+      reportType,
+      selectedGroup,
+      selectedContact,
+      startDate,
+      endDate,
+    } = req.body;
+    const userId = req.user.id;
 
     // Obtener los datos
     let filteredData = await reportMessageService.getReportMessages(userId);
@@ -27,15 +32,12 @@ router.post("/export", authenticateToken, async (req, res) => {
       filteredData = filteredData.filter(
         (reporte) => reporte.grupo === selectedGroup
       );
-
     } else if (reportType === "contacto" && selectedContact) {
       filteredData = filteredData.filter((reporte) =>
         reporte.nombre_contacto
           .toLowerCase()
           .includes(selectedContact.toLowerCase())
       );
-
-
     }
 
     // Filtrar por rango de fechas si corresponde
@@ -79,31 +81,93 @@ router.post("/export", authenticateToken, async (req, res) => {
       await workbook.xlsx.writeFile(filePath);
       res.download(filePath); // Enviar el archivo directamente
     } else if (format === "pdf") {
-      const doc = new PDFDocument();
+      const doc = new PDFDocument({
+        margin: 40,
+        size: "A4",
+        layout: "landscape",
+      }); // ← A3 horizontal
       const filePath = path.join(userDir, "reporte.pdf");
-      doc.pipe(fs.createWriteStream(filePath));
-      doc.fontSize(20).text("Reporte de Envíos", { align: "center" });
+      const writeStream = fs.createWriteStream(filePath);
+      doc.pipe(writeStream);
+
+      doc.fontSize(22).text("Reporte de Envíos", { align: "center" });
       doc.moveDown(2);
 
+      const headers = [
+        "Nombre Contacto",
+        "Número Celular",
+        "Mensaje",
+        "Estado",
+        "Grupo",
+        "Fecha Envío",
+        "Hora Envío",
+        "Cuenta Envío",
+      ];
+
+      const colWidths = [100, 90, 180, 60, 60, 70, 80, 80]; // columnas más equilibradas
+      const startX = doc.x;
+      let currentY = doc.y;
+
+      const rowHeight = 25;
+
+      // Función para dibujar una fila
+      const drawRow = (row, isHeader = false) => {
+        let x = startX;
+        row.forEach((cell, i) => {
+          // Borde de celda
+          doc.rect(x, currentY, colWidths[i], rowHeight).stroke();
+
+          // Contenido
+          doc
+            .font(isHeader ? "Helvetica-Bold" : "Helvetica")
+            .fontSize(10)
+            .text(String(cell ?? ""), x + 5, currentY + 7, {
+              width: colWidths[i] - 10,
+              height: rowHeight,
+              ellipsis: true,
+            });
+          x += colWidths[i];
+        });
+        currentY += rowHeight;
+      };
+
+      // Dibujar encabezado
+      drawRow(headers, true);
+
+      // Dibujar filas
       filteredData.forEach((reporte) => {
-        doc
-          .fontSize(12)
-          .text(
-            `Nombre Contacto: ${reporte.nombre_contacto}, Número: ${reporte.numero_cel}, Estado: ${reporte.estadoEnvio}, Grupo: ${reporte.grupo}, Fecha Envío: ${reporte.fecha_envio}, Hora Envío: ${reporte.hora_envio}, Cuenta Envío: ${reporte.cuenta_envio}`
-          );
-        doc.moveDown();
+        const row = [
+          reporte.nombre_contacto,
+          reporte.numero_cel,
+          reporte.message,
+          reporte.estadoEnvio,
+          reporte.grupo,
+          reporte.fecha_envio,
+          reporte.hora_envio,
+          reporte.cuenta_envio,
+        ];
+
+        if (currentY + rowHeight > doc.page.height - 50) {
+          doc.addPage();
+          currentY = 50;
+          drawRow(headers, true); // encabezado en nueva página
+        }
+
+        drawRow(row);
       });
 
       doc.end();
 
-      const publicUrl = path.join(
-        "public",
-        "files",
-        req.user.id,
-        "reporte.pdf"
-      );
-      const urlMedia = `${req.protocol}://${req.get("host")}/${publicUrl}`;
-      res.json({ file: urlMedia }); // Devuelve el URL del archivo generado en caso de ser un PDF
+      writeStream.on("finish", () => {
+        const publicUrl = path.join(
+          "public",
+          "files",
+          req.user.id,
+          "reporte.pdf"
+        );
+        const urlMedia = `${req.protocol}://${req.get("host")}/${publicUrl}`;
+        res.json({ file: urlMedia });
+      });
     } else {
       return res.status(400).json({ error: "Formato no soportado" });
     }
@@ -111,6 +175,5 @@ router.post("/export", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Error al generar el archivo" });
   }
 });
-
 
 module.exports = router;

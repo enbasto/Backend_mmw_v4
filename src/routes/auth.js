@@ -10,6 +10,10 @@ const { Op } = require("sequelize"); // Asegúrate de importar Op
 const { sendEmail } = require("../services/emailService");
 const authMiddleware = require("../middlewares/authMiddleware");
 const Allowed_domain = require("../models/allowed_domains");
+const logger = require("../middlewares/logger");
+const trace = require("stack-trace");
+// const { clients } = require('../server'); // Referencia circular (ver más abajo una solución)
+
 
 dotenv.config();
 // Endpoint para crear un nuevo usuario
@@ -418,5 +422,25 @@ router.put("/profile", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Error al actualizar perfil" });
   }
 });
+
+router.post("/close-session-user", authMiddleware, async (req, res) => {
+  try {
+    let userId = req.user.id;
+    await global.clients[userId].destroy();
+    delete global.clients[userId];
+    res.json({ message: "Sesión Finalizada por el Usuario" });
+  } catch (error) {
+    const stackInfo = trace.parse(error)[0];
+    logger.error(`
+      Error en close-session-user: ${error.message} 
+      Línea: ${stackInfo.getLineNumber()} 
+      Archivo: ${stackInfo.fileName} 
+      Stack: ${error.stack} 
+      Error Completo: ${JSON.stringify(error, null, 2)}
+    `);
+    res.status(500).json({ message: "Error: " + error.message });
+  }
+});
+
 
 module.exports = router;
