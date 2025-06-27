@@ -75,7 +75,7 @@ async function createClient(userId) {
   });
 
   client.on("ready", () => {
-    delete qrCodes[userId]; // Eliminar el QR una vez autenticado
+    delete global.qrCodes[userId]; // Eliminar el QR una vez autenticado
   });
 
   client.on("authenticated", () => {

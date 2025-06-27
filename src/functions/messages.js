@@ -86,7 +86,7 @@ async function handleTestMessage(message, userId) {
         message,
         personalizedMessage,
         userId,
-        global.clients?.[userId]?.info?.me?._serialized
+        global.clients[userId]?.info?.me?._serialized
       );
     } else {
       await sendTextMessage(personalizedMessage, userId);
